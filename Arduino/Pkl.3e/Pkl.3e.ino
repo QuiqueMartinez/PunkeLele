@@ -60,6 +60,14 @@ int sd_beat []    = {0, 0, 1, 0, 0, 0, 1, 0};
 int hh_beat []    = {0, 1, 0, 1, 1, 1, 0, 1};
 int  bass_beat[]  = {1, 1, 1, 1, 1, 1, 1, 1};
 
+enum STATES
+{
+  PLAYING,
+  PAUSED,
+  WRITTING_SETTINGS,
+};
+STATES state = PLAYING;
+
 void setup()
 {
   AudioMemory(30);
@@ -99,7 +107,7 @@ void setup()
 }
 
 //volatile byte vaux;
-byte  aux;
+
 //unsigned int  note;
 bool gtrPlaying = false;
 bool guitarSwitch = false;
@@ -111,17 +119,45 @@ int tick;
 int tempo = 16*base_interval;//multiplo de 16
 byte lastnote ;
 
+void ProcessStatePause();
+void ProcessStatePlaying();
+void ProcessStateWritting();
+
 void loop()
 {
+  byte  aux = 0;
   Wire.requestFrom(PCF8574, 1, false );
   while (Wire.available())
   {
     aux = ~Wire.read();
   }
 
-  byte bass_note = 38;
-  char * gtrnote = "";
-  byte currentnote = (aux >> 1) & 0x0F;
+  switch (state)
+  {
+    case PAUSED:
+      ProcessStatePause();
+      break;
+    case  PLAYING: 
+      ProcessStatePlaying(aux);
+      break;
+    case WRITTING_SETTINGS:
+      ProcessStateWritting();
+      break;
+  }
+
+  
+
+}
+
+void ProcessStatePause()
+{
+}
+
+void ProcessStatePlaying(byte input)
+{
+byte bass_note = 38;
+  const char * gtrnote = " ";
+  byte currentnote = (input >> 1) & 0x0F;
 
 if(lastnote!=currentnote && currentnote!=0x00)
 {
@@ -156,7 +192,7 @@ else
   }
   }
  
-     if (!(aux>>1 & 0x0F)  &&  gtrPlaying == true )
+     if (!(input>>1 & 0x0F)  &&  gtrPlaying == true )
   {
       guitarSwitch = false;
      gtrPlaying = false;
@@ -165,7 +201,7 @@ else
     }
 
 
-  else if ((holdnote ||(aux & 0x40  )) &&  gtrPlaying == false )
+  else if ((holdnote ||(input & 0x40  )) &&  gtrPlaying == false )
   {
     holdnote = false;
     gtrPlaying  = true;
@@ -176,7 +212,7 @@ else
   }
 
 
- else if (((aux & 0x40  )) &&  guitarSwitch == false )
+ else if (((input & 0x40  )) &&  guitarSwitch == false )
   {
 holdnote = false;
     gtrPlaying  = true;
@@ -188,7 +224,7 @@ holdnote = false;
 
   }
 
- else if ((~aux & 0x40  ) )
+ else if ((~input & 0x40  ) )
   {
     guitarSwitch = false;
   }
@@ -199,5 +235,8 @@ holdnote = false;
   delay (base_interval);
   delayMicroseconds(1800);
  tick++;
-
-}
+  
+  }
+void ProcessStateWritting()
+{
+  }
