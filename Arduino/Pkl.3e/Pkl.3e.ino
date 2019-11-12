@@ -122,6 +122,12 @@ byte lastnote ;
 void ProcessStatePause();
 void ProcessStatePlaying();
 void ProcessStateWritting();
+void ProcessTick();
+
+byte lastbuttons = 0;
+
+//todo 
+// Flags del sequencer
 
 void loop()
 {
@@ -131,7 +137,18 @@ void loop()
   {
     aux = ~Wire.read();
   }
-
+// los dos botones a la vez
+if((aux&0x01)&& (aux&0x80) && state==PLAYING) 
+{ 
+  // En realidad marca paused
+  state=PAUSED;
+}
+if (aux>>1&0x0F && state==PAUSED)
+{
+  state = PLAYING;
+  }
+  ProcessStateTick(); 
+    
   switch (state)
   {
     case PAUSED:
@@ -145,12 +162,21 @@ void loop()
       break;
   }
 
-  
-
 }
 
 void ProcessStatePause()
 {
+   BASS_Wave.stop();
+}
+
+// levanta los flags que sean
+// paternt/bass
+// Notes
+// asi sabemso si ha acabado el pattern antes de procesar el siguiente input
+
+void ProcessStateTick()
+{
+
 }
 
 void ProcessStatePlaying(byte input)
@@ -174,6 +200,7 @@ else
   // detect beat
   
   tick = tick%tempo;
+  
   int measure = tempo/base_interval;
   if (tick%measure == 0)
   {
@@ -233,7 +260,10 @@ holdnote = false;
   
  AudioInterrupts();
   delay (base_interval);
-  delayMicroseconds(1800);
+  // incrementa tempo
+  delayMicroseconds(100);
+  // TODO
+  // se puede meter una pequeña compensación del lag si la guitarra no está sonando
  tick++;
   
   }
