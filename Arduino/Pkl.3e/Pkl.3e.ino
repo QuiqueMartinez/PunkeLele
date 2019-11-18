@@ -59,7 +59,7 @@ int beat_kick[]   = {1, 0, 0, 0, 1, 1, 0, 0};
 int sd_beat []    = {0, 0, 1, 0, 0, 0, 1, 0};
 int hh_beat []    = {0, 1, 0, 1, 1, 1, 0, 1};
 int  bass_beat[]  = {1, 1, 1, 1, 1, 1, 1, 1};
-
+//int beat;
 enum STATES
 {
   PLAYING,
@@ -113,10 +113,18 @@ bool gtrPlaying = false;
 bool guitarSwitch = false;
 bool holdnote = false;
 
+
+// minimum Count of the sequencer resolution
+int tick = 0;
+bool beatflag; // indicates if trigger a souind
 int beat;
-int tick;
-#define base_interval  8
-int tempo = 16*base_interval;//multiplo de 16
+//delay between ticks
+#define base_interval  20
+// one beat contains 8 ticks
+#define ticks_per_beat  8
+#define beats_per_pattern  8
+
+
 byte lastnote ;
 
 void ProcessStatePause();
@@ -128,6 +136,27 @@ byte lastbuttons = 0;
 
 //todo 
 // Flags del sequencer
+byte sequencerFlags = 0;
+
+enum {
+    GREEN = 1 << 0,
+    RED = 1 << 1, 
+    YELLOW = 1 << 2, 
+    BLUE = 1 << 3, 
+    ORANGE = 1 <<4,
+    DOWN = 1 << 5,
+    UP = 1 << 6,
+    MUTE = 1 << 7,
+};
+
+
+enum // flags
+{
+  END_PATTERN,
+  END_BEAT,
+  MARK_DOWNSTROKE,
+  MARK_UPSTROKE,
+};
 
 void loop()
 {
@@ -137,17 +166,22 @@ void loop()
   {
     aux = ~Wire.read();
   }
+
+   
 // los dos botones a la vez
-if((aux&0x01)&& (aux&0x80) && state==PLAYING) 
+if((aux & GREEN)&& (aux & MUTE) && state==PLAYING && (sequencerFlags&END_PATTERN) )
 { 
   // En realidad marca paused
   state=PAUSED;
 }
-if (aux>>1&0x0F && state==PAUSED)
+if (aux>>1&0x0F && state==PAUSED&& (sequencerFlags&END_PATTERN) )
 {
   state = PLAYING;
   }
+  
+  sequencerFlags = 0;
   ProcessStateTick(); 
+
     
   switch (state)
   {
@@ -176,6 +210,16 @@ void ProcessStatePause()
 
 void ProcessStateTick()
 {
+   int sequencer =  ticks_per_beat*beats_per_pattern;
+   tick = tick%sequencer;
+   if (tick%ticks_per_beat == 0)   sequencerFlags = sequencerFlags |  END_BEAT;
+   if (tick == sequencer-1) sequencerFlags = sequencerFlags |  END_PATTERN;
+   beat = tick/ticks_per_beat;
+   tick++;
+   
+   delay (base_interval);
+  // TODO
+  // se puede meter una pequeña compensación del lag si la guitarra no está sonando
 
 }
 
@@ -198,18 +242,14 @@ else
   }
   
   // detect beat
-  
-  tick = tick%tempo;
-  
-  int measure = tempo/base_interval;
-  if (tick%measure == 0)
-  {
-    beat  = tick/measure;
+
   
 
   AudioNoInterrupts();
 
-  if (beat_kick[beat ] != 0)     KICK_Wave.play(AudioSampleKick);
+if(sequencerFlags & END_BEAT )
+{
+  if (beat_kick[beat] != 0)     KICK_Wave.play(AudioSampleKick);
   if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
   if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
   if (bass_beat[beat ] != 0)
@@ -217,6 +257,7 @@ else
       BASS_Wave.stop();
     BASS_Wave.playNote(bass_note , 100);
   }
+
   }
  
      if (!(input>>1 & 0x0F)  &&  gtrPlaying == true )
@@ -259,12 +300,7 @@ holdnote = false;
 
   
  AudioInterrupts();
-  delay (base_interval);
-  // incrementa tempo
-  delayMicroseconds(100);
-  // TODO
-  // se puede meter una pequeña compensación del lag si la guitarra no está sonando
- tick++;
+ 
   
   }
 void ProcessStateWritting()
