@@ -62,11 +62,14 @@ int  bass_beat[]  = {1, 1, 1, 1, 1, 1, 1, 1};
 //int beat;
 enum STATES
 {
-  PLAYING,
+  PLAYING_MODE_1,
+  PLAYING_MODE_2,
+  PLAYING_MODE_3,
+  PLAYING_MODE_4,
   PAUSED,
   WRITTING_SETTINGS,
 };
-STATES state = PLAYING;
+STATES state = PLAYING_MODE_3;
 
 void setup()
 {
@@ -169,14 +172,14 @@ void loop()
 
    
 // los dos botones a la vez
-if((aux & GREEN)&& (aux & MUTE) && state==PLAYING && (sequencerFlags&END_PATTERN) )
+if((aux & GREEN)&& (aux & MUTE) && state==PLAYING_MODE_3 && (sequencerFlags&END_PATTERN) )
 { 
   // En realidad marca paused
   state=PAUSED;
 }
 if (aux>>1&0x0F && state==PAUSED&& (sequencerFlags&END_PATTERN) )
 {
-  state = PLAYING;
+  state = PLAYING_MODE_3;
   }
   
   sequencerFlags = 0;
@@ -188,7 +191,7 @@ if (aux>>1&0x0F && state==PAUSED&& (sequencerFlags&END_PATTERN) )
     case PAUSED:
       ProcessStatePause();
       break;
-    case  PLAYING: 
+    case  PLAYING_MODE_3: 
       ProcessStatePlaying(aux);
       break;
     case WRITTING_SETTINGS:
