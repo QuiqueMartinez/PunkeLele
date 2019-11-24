@@ -62,12 +62,12 @@ int  bass_beat[]  = {1, 1, 1, 1, 1, 1, 1, 1};
 //int beat;
 enum STATES
 {
-  PLAYING_MODE_1,
-  PLAYING_MODE_2,
-  PLAYING_MODE_3,
-  PLAYING_MODE_4,
-  PAUSED,
-  WRITTING_SETTINGS,
+  PLAYING_MODE_1 = 1 << 0,
+  PLAYING_MODE_2 = 1 << 1,
+  PLAYING_MODE_3 = 1 << 2,
+  PLAYING_MODE_4 = 1 << 3,
+  PAUSED =  1 << 4,
+  WRITTING_SETTINGS = 1 << 5,
 };
 STATES state = PLAYING_MODE_3;
 
@@ -85,8 +85,8 @@ void setup()
   Master_L.gain(1, 1);
   Master_R.gain(1, 1);
 
-  Master_L.gain(2, 0.5);
-  Master_R.gain(2, 0.5);
+  Master_L.gain(2, 0.65);
+  Master_R.gain(2, 0.65);
 
   BASS_Wave.setInstrument(b);
   BASS_Wave.amplitude(1);
@@ -100,7 +100,7 @@ void setup()
 
   SPI.setMOSI(SDCARD_MOSI_PIN);
   SPI.setSCK(SDCARD_SCK_PIN);
-  if (!(SD.begin(SDCARD_CS_PIN))) 
+  if (!(SD.begin(SDCARD_CS_PIN)))
   {
     while (1) {
       Serial.println("Unable to access the SD card");
@@ -122,11 +122,14 @@ int tick = 0;
 bool beatflag; // indicates if trigger a souind
 int beat;
 //delay between ticks
-#define base_interval  20
+#define base_interval  18
 // one beat contains 8 ticks
 #define ticks_per_beat  8
 #define beats_per_pattern  8
 
+byte currentbuttons = 0;
+byte lastbuttons = 0;
+byte  signals = 0;
 
 byte lastnote ;
 
@@ -135,21 +138,20 @@ void ProcessStatePlaying();
 void ProcessStateWritting();
 void ProcessTick();
 
-byte lastbuttons = 0;
 
-//todo 
+//todo
 // Flags del sequencer
 byte sequencerFlags = 0;
 
 enum {
-    GREEN = 1 << 0,
-    RED = 1 << 1, 
-    YELLOW = 1 << 2, 
-    BLUE = 1 << 3, 
-    ORANGE = 1 <<4,
-    DOWN = 1 << 5,
-    UP = 1 << 6,
-    MUTE = 1 << 7,
+  GREEN = 1 << 0,
+  RED = 1 << 1,
+  YELLOW = 1 << 2,
+  BLUE = 1 << 3,
+  ORANGE = 1 << 4,
+  DOWN = 1 << 5,
+  UP = 1 << 6,
+  MUTE = 1 << 7,
 };
 
 
@@ -161,38 +163,47 @@ enum // flags
   MARK_UPSTROKE,
 };
 
+
+
+
 void loop()
 {
-  byte  aux = 0;
+  // Pressed keys
+  currentbuttons = 0;
+
   Wire.requestFrom(PCF8574, 1, false );
   while (Wire.available())
   {
-    aux = ~Wire.read();
+    currentbuttons = ~Wire.read();
   }
 
-   
-// los dos botones a la vez
-if((aux & GREEN)&& (aux & MUTE) && state==PLAYING_MODE_3 && (sequencerFlags&END_PATTERN) )
-{ 
-  // En realidad marca paused
-  state=PAUSED;
-}
-if (aux>>1&0x0F && state==PAUSED&& (sequencerFlags&END_PATTERN) )
-{
-  state = PLAYING_MODE_3;
-  }
+  signals = lastbuttons&&currentbuttons;
   
-  sequencerFlags = 0;
-  ProcessStateTick(); 
+  // los dos botones a la vez
+  if ((currentbuttons & GREEN) && (currentbuttons & MUTE) && state == PLAYING_MODE_3 && (sequencerFlags & END_PATTERN) )
+  {
+    // En realidad marca paused
+    state = PAUSED;
+  }
+  if (currentbuttons >> 1 & 0x0F && state == PAUSED && (sequencerFlags & END_PATTERN) )
+  {
+    state = PLAYING_MODE_1;
+  }
 
-    
+  sequencerFlags = 0;
+  ProcessStateTick();
+
+
   switch (state)
   {
     case PAUSED:
       ProcessStatePause();
       break;
-    case  PLAYING_MODE_3: 
-      ProcessStatePlaying(aux);
+    case  PLAYING_MODE_1:
+    case  PLAYING_MODE_2:
+    case  PLAYING_MODE_3:
+    case  PLAYING_MODE_4:
+      ProcessStatePlaying();
       break;
     case WRITTING_SETTINGS:
       ProcessStateWritting();
@@ -203,7 +214,7 @@ if (aux>>1&0x0F && state==PAUSED&& (sequencerFlags&END_PATTERN) )
 
 void ProcessStatePause()
 {
-   BASS_Wave.stop();
+  BASS_Wave.stop();
 }
 
 // levanta los flags que sean
@@ -213,66 +224,85 @@ void ProcessStatePause()
 
 void ProcessStateTick()
 {
-   int sequencer =  ticks_per_beat*beats_per_pattern;
-   tick = tick%sequencer;
-   if (tick%ticks_per_beat == 0)   sequencerFlags = sequencerFlags |  END_BEAT;
-   if (tick == sequencer-1) sequencerFlags = sequencerFlags |  END_PATTERN;
-   beat = tick/ticks_per_beat;
-   tick++;
-   
-   delay (base_interval);
+  int sequencer =  ticks_per_beat * beats_per_pattern;
+  tick = tick % sequencer;
+  if (tick % ticks_per_beat == 0)   sequencerFlags = sequencerFlags |  END_BEAT;
+  if (tick == sequencer - 1) sequencerFlags = sequencerFlags |  END_PATTERN;
+  beat = tick / ticks_per_beat;
+  tick++;
+
+  delay (base_interval);
   // TODO
   // se puede meter una pequeña compensación del lag si la guitarra no está sonando
 
 }
 
-void ProcessStatePlaying(byte input)
+void ProcessStatePlaying()
 {
-byte bass_note = 38;
+  byte bass_note = 38;
   const char * gtrnote = " ";
-  byte currentnote = (input >> 1) & 0x0F;
+  byte currentnote = (currentbuttons >> 1) & 0x0F;
 
-if(lastnote!=currentnote && currentnote!=0x00)
-{
-  bass_note = BassLockup[currentnote];
-  gtrnote = GuitarLockup[currentnote];
-  lastnote =currentnote;
-}
-else
-{
-    bass_note = BassLockup[lastnote];
-  gtrnote = GuitarLockup[lastnote];
+  // Detect key release
+  bool noteKeysReleased = (!(currentbuttons >> 1 & 0x0F)  &&  gtrPlaying == true );
+  bool newNote = (lastnote != currentnote) && (currentnote != 0x00);
+
+  // detect new notea
+  if (newNote)
+  {
+    bass_note = BassLockup[currentnote];
+    gtrnote = GuitarLockup[currentnote];
+    lastnote = currentnote;
   }
-  
-  // detect beat
-
-  
+  else
+  {
+    bass_note = BassLockup[lastnote];
+    gtrnote = GuitarLockup[lastnote];
+  }
 
   AudioNoInterrupts();
-
-if(sequencerFlags & END_BEAT )
-{
-  if (beat_kick[beat] != 0)     KICK_Wave.play(AudioSampleKick);
-  if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
-  if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
-  if (bass_beat[beat ] != 0)
+  // Drums section
+  if ((sequencerFlags & END_BEAT) && (state & (PLAYING_MODE_2 | PLAYING_MODE_3)) )
   {
+    if (beat_kick[beat] != 0)    KICK_Wave.play(AudioSampleKick);
+    if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
+    if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
+
+  }
+
+  // Bass Section
+  if (sequencerFlags & END_BEAT && state & PLAYING_MODE_3  )
+  {
+    if (bass_beat[beat ] != 0 )
+    {
       BASS_Wave.stop();
-    BASS_Wave.playNote(bass_note , 100);
-  }
-
-  }
- 
-     if (!(input>>1 & 0x0F)  &&  gtrPlaying == true )
-  {
-      guitarSwitch = false;
-     gtrPlaying = false;
-      Guitar_Wave.stop();
-
+      BASS_Wave.playNote(bass_note , 100);
     }
 
+    else  if (state & (PLAYING_MODE_1 | PLAYING_MODE_2))
+    {
+      if (noteKeysReleased ) 
+      {
+        BASS_Wave.stop();
+      }
+      else if (newNote)
+      {
+        BASS_Wave.playNote(bass_note , 100);
+      }
+    }
+  }
 
-  else if ((holdnote ||(input & 0x40  )) &&  gtrPlaying == false )
+  // stops guitar if no
+  if (noteKeysReleased )
+  {
+    guitarSwitch = false;
+    gtrPlaying = false;
+    Guitar_Wave.stop();
+
+  }
+
+
+  else if ((holdnote || (currentbuttons & 0x40  )) &&  gtrPlaying == false )
   {
     holdnote = false;
     gtrPlaying  = true;
@@ -283,9 +313,9 @@ if(sequencerFlags & END_BEAT )
   }
 
 
- else if (((input & 0x40  )) &&  guitarSwitch == false )
+  else if (((currentbuttons & 0x40  )) &&  guitarSwitch == false )
   {
-holdnote = false;
+    holdnote = false;
     gtrPlaying  = true;
     guitarSwitch = true;
     Guitar_Wave.stop();
@@ -295,17 +325,17 @@ holdnote = false;
 
   }
 
- else if ((~input & 0x40  ) )
+  else if ((~currentbuttons & 0x40  ) )
   {
     guitarSwitch = false;
   }
 
 
-  
- AudioInterrupts();
- 
-  
-  }
+
+  AudioInterrupts();
+
+
+}
 void ProcessStateWritting()
 {
-  }
+}
