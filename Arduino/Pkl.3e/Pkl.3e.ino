@@ -122,7 +122,7 @@ int tick = 0;
 bool beatflag; // indicates if trigger a souind
 int beat;
 //delay between ticks
-#define base_interval  18
+#define base_interval  20
 // one beat contains 8 ticks
 #define ticks_per_beat  8
 #define beats_per_pattern  8
@@ -137,6 +137,7 @@ void ProcessStatePause();
 void ProcessStatePlaying();
 void ProcessStateWritting();
 void ProcessTick();
+void ProcessInput();
 
 
 //todo
@@ -157,8 +158,8 @@ enum {
 
 enum // flags
 {
-  END_PATTERN,
-  END_BEAT,
+  NEW_PATTERN,
+  NEW_BEAT,
   MARK_DOWNSTROKE,
   MARK_UPSTROKE,
 };
@@ -168,30 +169,9 @@ enum // flags
 
 void loop()
 {
-  // Pressed keys
-  currentbuttons = 0;
 
-  Wire.requestFrom(PCF8574, 1, false );
-  while (Wire.available())
-  {
-    currentbuttons = ~Wire.read();
-  }
-
-  signals = lastbuttons&&currentbuttons;
-  
-  // los dos botones a la vez
-  if ((currentbuttons & GREEN) && (currentbuttons & MUTE) && state == PLAYING_MODE_3 && (sequencerFlags & END_PATTERN) )
-  {
-    // En realidad marca paused
-    state = PAUSED;
-  }
-  if (currentbuttons >> 1 & 0x0F && state == PAUSED && (sequencerFlags & END_PATTERN) )
-  {
-    state = PLAYING_MODE_1;
-  }
-
-  sequencerFlags = 0;
-  ProcessStateTick();
+  ProcessInputs();
+  ProcessTick();
 
 
   switch (state)
@@ -203,13 +183,68 @@ void loop()
     case  PLAYING_MODE_2:
     case  PLAYING_MODE_3:
     case  PLAYING_MODE_4:
+    if(currentbuttons & GREEN)//shift
+      {
+          if (signals & UP) 
+          {
+            switch (state)
+            {
+              case PLAYING_MODE_1: state= PLAYING_MODE_2; break;
+              case PLAYING_MODE_2: state= PLAYING_MODE_3; break;
+              case PLAYING_MODE_3: state= PLAYING_MODE_4; break;
+              case PLAYING_MODE_4: state= PLAYING_MODE_1; break;
+              default : break;
+            }
+            
+          }
+          if (signals & DOWN) 
+          {
+        switch (state)
+            {
+              case PLAYING_MODE_1: state= PLAYING_MODE_4; break;
+              case PLAYING_MODE_2: state= PLAYING_MODE_1; break;
+              case PLAYING_MODE_3: state= PLAYING_MODE_2; break;
+              case PLAYING_MODE_4: state= PLAYING_MODE_3; break;
+              default: break;
+            }
+           }
+         
+      }
+
       ProcessStatePlaying();
+
       break;
     case WRITTING_SETTINGS:
       ProcessStateWritting();
       break;
   }
 
+}
+
+
+void ProcessInputs()
+{
+    // Pressed keys
+  currentbuttons = 0;
+
+  Wire.requestFrom(PCF8574, 1, false );
+  while (Wire.available())
+  {
+    currentbuttons = ~Wire.read();
+  }
+  if (currentbuttons == lastbuttons) return;
+  signals = lastbuttons^currentbuttons;
+  lastbuttons = currentbuttons;
+  // los dos botones a la vez
+  /*if ((currentbuttons & GREEN) && (currentbuttons & MUTE) && state == PLAYING_MODE_3 && (sequencerFlags & NEW_PATTERN) )
+  {
+    // En realidad marca paused
+    state = PAUSED;
+  }
+  if (currentbuttons >> 1 & 0x0F && state == PAUSED && (sequencerFlags & NEW_PATTERN) )
+  {
+    state = PLAYING_MODE_1;
+  }*/
 }
 
 void ProcessStatePause()
@@ -222,25 +257,24 @@ void ProcessStatePause()
 // Notes
 // asi sabemso si ha acabado el pattern antes de procesar el siguiente input
 
-void ProcessStateTick()
+void ProcessTick()
 {
-  int sequencer =  ticks_per_beat * beats_per_pattern;
-  tick = tick % sequencer;
-  if (tick % ticks_per_beat == 0)   sequencerFlags = sequencerFlags |  END_BEAT;
-  if (tick == sequencer - 1) sequencerFlags = sequencerFlags |  END_PATTERN;
+  tick = tick % (ticks_per_beat * beats_per_pattern);
+ 
+  sequencerFlags = 0;
+  if (tick % ticks_per_beat == 0)   sequencerFlags = sequencerFlags |  NEW_BEAT;
+  if (tick == 0) sequencerFlags = sequencerFlags |  NEW_PATTERN;
   beat = tick / ticks_per_beat;
   tick++;
 
   delay (base_interval);
-  // TODO
-  // se puede meter una pequeña compensación del lag si la guitarra no está sonando
-
 }
 
 void ProcessStatePlaying()
 {
-  byte bass_note = 38;
+  
   const char * gtrnote = " ";
+  
   byte currentnote = (currentbuttons >> 1) & 0x0F;
 
   // Detect key release
@@ -250,48 +284,32 @@ void ProcessStatePlaying()
   // detect new notea
   if (newNote)
   {
-    bass_note = BassLockup[currentnote];
+  //  bass_note = BassLockup[currentnote];
     gtrnote = GuitarLockup[currentnote];
     lastnote = currentnote;
   }
   else
   {
-    bass_note = BassLockup[lastnote];
+  //  bass_note = BassLockup[lastnote];
     gtrnote = GuitarLockup[lastnote];
   }
 
+ 
+
   AudioNoInterrupts();
+
+  
+  
   // Drums section
-  if ((sequencerFlags & END_BEAT) && (state & (PLAYING_MODE_2 | PLAYING_MODE_3)) )
-  {
-    if (beat_kick[beat] != 0)    KICK_Wave.play(AudioSampleKick);
-    if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
-    if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
-
-  }
-
+  DrumsSection();
+ // si doy para arriba guitarrazo sin compasion
+  BassSection(newNote, BassLockup[currentnote]);
   // Bass Section
-  if (sequencerFlags & END_BEAT && state & PLAYING_MODE_3  )
-  {
-    if (bass_beat[beat ] != 0 )
-    {
-      BASS_Wave.stop();
-      BASS_Wave.playNote(bass_note , 100);
-    }
+  
+  
 
-    else  if (state & (PLAYING_MODE_1 | PLAYING_MODE_2))
-    {
-      if (noteKeysReleased ) 
-      {
-        BASS_Wave.stop();
-      }
-      else if (newNote)
-      {
-        BASS_Wave.playNote(bass_note , 100);
-      }
-    }
-  }
-
+   if (!(currentbuttons & GREEN))
+   {
   // stops guitar if no
   if (noteKeysReleased )
   {
@@ -329,13 +347,44 @@ void ProcessStatePlaying()
   {
     guitarSwitch = false;
   }
-
+   }
 
 
   AudioInterrupts();
 
 
 }
+
+void DrumsSection()
+{
+  if (state == PLAYING_MODE_1) return;
+  else if (sequencerFlags & NEW_BEAT)
+  {
+    if (beat_kick[beat] != 0)    KICK_Wave.play(AudioSampleKick);
+    if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
+    if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
+
+  }
+
+  }
+
+  void BassSection(bool newnote, byte bassnote)
+  {
+   if (state & (PLAYING_MODE_1 | PLAYING_MODE_2) && sequencerFlags|NEW_BEAT )
+   {
+          BASS_Wave.stop();
+   }
+   else if (sequencerFlags & NEW_BEAT && state & PLAYING_MODE_3  )
+   {
+    if (bass_beat[beat ] != 0 )
+    {
+      BASS_Wave.stop();
+      BASS_Wave.playNote(bassnote , 100);
+    }
+
+    }
+  }
+
 void ProcessStateWritting()
 {
 }
