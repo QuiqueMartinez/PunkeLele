@@ -119,7 +119,7 @@ bool holdnote = false;
 
 // minimum Count of the sequencer resolution
 int tick = 0;
-bool beatflag; // indicates if trigger a souind
+
 int beat;
 //delay between ticks
 #define base_interval  20
@@ -127,22 +127,16 @@ int beat;
 #define ticks_per_beat  8
 #define beats_per_pattern  8
 
-byte currentbuttons = 0;
-byte lastbuttons = 0;
-byte  signals = 0;
+
+
 
 byte lastnote ;
-
+/*
 void ProcessStatePause();
 void ProcessStatePlaying();
 void ProcessStateWritting();
-void ProcessTick();
-void ProcessInput();
 
-
-//todo
-// Flags del sequencer
-byte sequencerFlags = 0;
+void ProcessInput();*/
 
 enum {
   GREEN = 1 << 0,
@@ -158,21 +152,26 @@ enum {
 
 enum // flags
 {
-  NEW_PATTERN,
-  NEW_BEAT,
-  MARK_DOWNSTROKE,
-  MARK_UPSTROKE,
+  NEW_PATTERN = 1 << 0,
+  NEW_BEAT = 1 << 1,
+  MARK_DOWNSTROKE = 1 << 2,
+  MARK_UPSTROKE=  1 << 3,
+  MARK_BTN_DOWN = 1 << 4,
+  MARK_BTN_RELEASE = 1 << 5,
+  MARK_SHIFT_DOWN = 1 << 6,
+  MARK_SHIFT_RELEASE = 1 << 7,
 };
 
+  byte currentbuttons = 0;
+  byte lastbuttons = 0;
 
-
-
+  byte sequencerFlags;
 void loop()
 {
-
-  ProcessInputs();
-  ProcessTick();
-
+ 
+  // Flags prepared
+  byte triggers = ProcessInputs();
+   sequencerFlags = ProcessTick();
 
   switch (state)
   {
@@ -185,11 +184,15 @@ void loop()
     case  PLAYING_MODE_4:
     if(currentbuttons & GREEN)//shift
       {
-          if (signals & UP) 
+          if (triggers & currentbuttons & UP ) 
           {
             switch (state)
             {
-              case PLAYING_MODE_1: state= PLAYING_MODE_2; break;
+              case PLAYING_MODE_1: 
+               
+                tick = 0;
+                state= PLAYING_MODE_2; break;
+             
               case PLAYING_MODE_2: state= PLAYING_MODE_3; break;
               case PLAYING_MODE_3: state= PLAYING_MODE_4; break;
               case PLAYING_MODE_4: state= PLAYING_MODE_1; break;
@@ -197,11 +200,15 @@ void loop()
             }
             
           }
-          if (signals & DOWN) 
+          if (triggers & currentbuttons & DOWN) 
           {
         switch (state)
             {
-              case PLAYING_MODE_1: state= PLAYING_MODE_4; break;
+              case PLAYING_MODE_1: 
+              
+                tick = 0;
+                state= PLAYING_MODE_4; break;
+              
               case PLAYING_MODE_2: state= PLAYING_MODE_1; break;
               case PLAYING_MODE_3: state= PLAYING_MODE_2; break;
               case PLAYING_MODE_4: state= PLAYING_MODE_3; break;
@@ -222,30 +229,27 @@ void loop()
 }
 
 
-void ProcessInputs()
+byte ProcessInputs()
 {
-    // Pressed keys
   currentbuttons = 0;
-
   Wire.requestFrom(PCF8574, 1, false );
+
   while (Wire.available())
   {
     currentbuttons = ~Wire.read();
   }
-  if (currentbuttons == lastbuttons) return;
-  signals = lastbuttons^currentbuttons;
-  lastbuttons = currentbuttons;
-  // los dos botones a la vez
-  /*if ((currentbuttons & GREEN) && (currentbuttons & MUTE) && state == PLAYING_MODE_3 && (sequencerFlags & NEW_PATTERN) )
-  {
-    // En realidad marca paused
-    state = PAUSED;
+  
+  if (currentbuttons == lastbuttons) return 0;
+  else
+  {  byte aux =  lastbuttons ^ currentbuttons;
+   lastbuttons = currentbuttons;
+    return aux;
   }
-  if (currentbuttons >> 1 & 0x0F && state == PAUSED && (sequencerFlags & NEW_PATTERN) )
-  {
-    state = PLAYING_MODE_1;
-  }*/
 }
+
+ 
+
+
 
 void ProcessStatePause()
 {
@@ -257,17 +261,18 @@ void ProcessStatePause()
 // Notes
 // asi sabemso si ha acabado el pattern antes de procesar el siguiente input
 
-void ProcessTick()
+byte ProcessTick()
 {
   tick = tick % (ticks_per_beat * beats_per_pattern);
  
-  sequencerFlags = 0;
-  if (tick % ticks_per_beat == 0)   sequencerFlags = sequencerFlags |  NEW_BEAT;
-  if (tick == 0) sequencerFlags = sequencerFlags |  NEW_PATTERN;
+  byte aux_sequencerFlags = 0;
+  if (tick % ticks_per_beat == 0)   aux_sequencerFlags =  NEW_BEAT;
+  if (tick == 0) aux_sequencerFlags = aux_sequencerFlags |  NEW_PATTERN;
   beat = tick / ticks_per_beat;
   tick++;
 
   delay (base_interval);
+  return aux_sequencerFlags;
 }
 
 void ProcessStatePlaying()
@@ -383,6 +388,11 @@ void DrumsSection()
     }
 
     }
+  }
+
+  void GuitarSection()
+  {
+    
   }
 
 void ProcessStateWritting()
