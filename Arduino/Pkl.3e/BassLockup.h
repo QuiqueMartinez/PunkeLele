@@ -12,8 +12,8 @@ const  char * GuitarLockup[32] =
   "A0.WAV", "B0.WAV", "G#0.WAV", "A0.WAV",
   "D0.WAV", "D0.WAV", "C0.WAV", "D0.WAV",
   "C#0.WAV", "D0.WAV", "D0.WAV", "D0.WAV",
-  "Em0.WAV", "Em0.WAV", "Gm0.WAV", "Gm0.WAV",
-  "Am0.WAV", "Am0.WAV", "Am0.WAV", "Am0.WAV",
-  "Dm0.WAV", "Dm0.WAV", "Dm0.WAV", "Dm0.WAV",
-  "Dm0.WAV", "Dm0.WAV", "Dm0.WAV", "D,m0.WAV",
+  "Em0.WAV", "Em0.WAV", "Gm0.WAV", "Fm0.WAV",
+  "Am0.WAV", "Bm0.WAV", "Gm#0.WAV", "Am0.WAV",
+  "Dm0.WAV", "Dm0.WAV", "Cm0.WAV", "Dm0.WAV",
+  "Cm#0.WAV", "Dm0.WAV", "Dm0.WAV", "Dm0.WAV",
   };
