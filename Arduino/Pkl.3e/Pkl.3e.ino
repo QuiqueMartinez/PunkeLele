@@ -114,7 +114,7 @@ void setup()
 //unsigned int  note;
 bool gtrPlaying = false;
 bool guitarSwitch = false;
-bool holdnote = false;
+//bool holdnote = false;
 
 
 // minimum Count of the sequencer resolution
@@ -217,15 +217,12 @@ void loop()
            }
          
       }
-
       ProcessStatePlaying();
-
       break;
-    case WRITTING_SETTINGS:
+      case WRITTING_SETTINGS:
       ProcessStateWritting();
       break;
   }
-
 }
 
 
@@ -233,7 +230,7 @@ byte ProcessInputs()
 {
   currentbuttons = 0;
   Wire.requestFrom(PCF8574, 1, false );
-
+  
   while (Wire.available())
   {
     currentbuttons = ~Wire.read();
@@ -246,10 +243,6 @@ byte ProcessInputs()
     return aux;
   }
 }
-
- 
-
-
 
 void ProcessStatePause()
 {
@@ -277,42 +270,54 @@ byte ProcessTick()
 
 void ProcessStatePlaying()
 {
+    byte currentnote = (((currentbuttons >> 1) & 0x0F) == 0)? lastnote:((currentbuttons >> 1) & 0x0F);
+    bool newNote = (lastnote != currentnote) && (currentnote != 0x00);
+ 
+  //const char * gtrnote = " ";
   
-  const char * gtrnote = " ";
-  
-  byte currentnote = (currentbuttons >> 1) & 0x0F;
 
-  // Detect key release
-  bool noteKeysReleased = (!(currentbuttons >> 1 & 0x0F)  &&  gtrPlaying == true );
-  bool newNote = (lastnote != currentnote) && (currentnote != 0x00);
+
 
   // detect new notea
-  if (newNote)
+  /*if (newNote)
   {
-  //  bass_note = BassLockup[currentnote];
-    gtrnote = GuitarLockup[currentnote];
+    gtrnote = currentnote;
     lastnote = currentnote;
   }
   else
   {
-  //  bass_note = BassLockup[lastnote];
-    gtrnote = GuitarLockup[lastnote];
-  }
-
- 
-
+    gtrnote = lastnote;
+  } */
   AudioNoInterrupts();
-
-  
-  
-  // Drums section
   DrumsSection();
- // si doy para arriba guitarrazo sin compasion
   BassSection(newNote, BassLockup[currentnote]);
-  // Bass Section
-  
-  
+  GuitarSection(newNote, currentnote);
+  AudioInterrupts();
+}
 
+void DrumsSection(){
+  if (state == PLAYING_MODE_1) return;
+  else if (sequencerFlags & NEW_BEAT){
+    if (beat_kick[beat] != 0)    KICK_Wave.play(AudioSampleKick);
+    if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
+    if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
+} }
+
+void BassSection(bool newnote, byte bassnote){
+   if (state & (PLAYING_MODE_1 | PLAYING_MODE_2) && sequencerFlags|NEW_BEAT ) BASS_Wave.stop();
+   else if (sequencerFlags & NEW_BEAT && state & (PLAYING_MODE_3| PLAYING_MODE_4 )){
+    if (bass_beat[beat ] != 0 ){
+      BASS_Wave.stop();
+      BASS_Wave.playNote(bassnote , 100);
+} } }
+
+void GuitarSection(bool newnote, int  gtrnoteIndex )
+{
+ const char *  gtrnote = GuitarLockup[gtrnoteIndex];
+  
+  // Detect key release
+        bool noteKeysReleased = (!(currentbuttons >> 1 & 0x0F)  &&  gtrPlaying == true );
+  
    if (!(currentbuttons & GREEN))
    {
   // stops guitar if no
@@ -324,10 +329,16 @@ void ProcessStatePlaying()
 
   }
 
-
-  else if ((holdnote || (currentbuttons & 0x40  )) &&  gtrPlaying == false )
+  else if( (currentbuttons & 0x20  ) && (sequencerFlags & NEW_BEAT))
   {
-    holdnote = false;
+        Guitar_Wave.stop();
+    Guitar_Wave.play( GuitarLockup[gtrnoteIndex+16]);
+    }
+  
+
+  else if (( (currentbuttons & 0x40  )) &&  gtrPlaying == false )
+  {
+    //holdnote = false;
     gtrPlaying  = true;
 
     guitarSwitch = true;
@@ -338,7 +349,7 @@ void ProcessStatePlaying()
 
   else if (((currentbuttons & 0x40  )) &&  guitarSwitch == false )
   {
-    holdnote = false;
+    //holdnote = false;
     gtrPlaying  = true;
     guitarSwitch = true;
     Guitar_Wave.stop();
@@ -353,46 +364,6 @@ void ProcessStatePlaying()
     guitarSwitch = false;
   }
    }
-
-
-  AudioInterrupts();
-
-
-}
-
-void DrumsSection()
-{
-  if (state == PLAYING_MODE_1) return;
-  else if (sequencerFlags & NEW_BEAT)
-  {
-    if (beat_kick[beat] != 0)    KICK_Wave.play(AudioSampleKick);
-    if (sd_beat[beat ] != 0) SD_Wave.play(AudioSampleSd);
-    if (hh_beat[beat ] != 0) CHH_Wave.play(AudioSampleHihat);
-
-  }
-
-  }
-
-  void BassSection(bool newnote, byte bassnote)
-  {
-   if (state & (PLAYING_MODE_1 | PLAYING_MODE_2) && sequencerFlags|NEW_BEAT )
-   {
-          BASS_Wave.stop();
-   }
-   else if (sequencerFlags & NEW_BEAT && state & PLAYING_MODE_3  )
-   {
-    if (bass_beat[beat ] != 0 )
-    {
-      BASS_Wave.stop();
-      BASS_Wave.playNote(bassnote , 100);
-    }
-
-    }
-  }
-
-  void GuitarSection()
-  {
-    
   }
 
 void ProcessStateWritting()
