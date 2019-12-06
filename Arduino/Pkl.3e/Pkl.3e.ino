@@ -70,6 +70,7 @@ enum STATES
   WRITTING_SETTINGS = 1 << 5,
 };
 STATES state = PLAYING_MODE_3;
+STATES nextState = state;
 
 void setup()
 {
@@ -122,7 +123,7 @@ int tick = 0;
 
 int beat;
 //delay between ticks
-#define base_interval  20
+#define base_interval  18//20
 // one beat contains 8 ticks
 #define ticks_per_beat  8
 #define beats_per_pattern  8
@@ -191,11 +192,11 @@ void loop()
               case PLAYING_MODE_1: 
                
                 tick = 0;
-                state= PLAYING_MODE_2; break;
+                nextState= PLAYING_MODE_2; break;
              
-              case PLAYING_MODE_2: state= PLAYING_MODE_3; break;
-              case PLAYING_MODE_3: state= PLAYING_MODE_4; break;
-              case PLAYING_MODE_4: state= PLAYING_MODE_1; break;
+              case PLAYING_MODE_2: nextState= PLAYING_MODE_3; break;
+              case PLAYING_MODE_3: nextState= PLAYING_MODE_4; break;
+              case PLAYING_MODE_4: nextState= PLAYING_MODE_1; break;
               default : break;
             }
             
@@ -207,11 +208,11 @@ void loop()
               case PLAYING_MODE_1: 
               
                 tick = 0;
-                state= PLAYING_MODE_4; break;
+                nextState= PLAYING_MODE_4; break;
               
-              case PLAYING_MODE_2: state= PLAYING_MODE_1; break;
-              case PLAYING_MODE_3: state= PLAYING_MODE_2; break;
-              case PLAYING_MODE_4: state= PLAYING_MODE_3; break;
+              case PLAYING_MODE_2: nextState= PLAYING_MODE_1; break;
+              case PLAYING_MODE_3: nextState= PLAYING_MODE_2; break;
+              case PLAYING_MODE_4: nextState= PLAYING_MODE_3; break;
               default: break;
             }
            }
@@ -260,7 +261,11 @@ byte ProcessTick()
  
   byte aux_sequencerFlags = 0;
   if (tick % ticks_per_beat == 0)   aux_sequencerFlags =  NEW_BEAT;
-  if (tick == 0) aux_sequencerFlags = aux_sequencerFlags |  NEW_PATTERN;
+  if (tick == 0) 
+  {
+    aux_sequencerFlags = aux_sequencerFlags |  NEW_PATTERN;
+    state = nextState;
+  }
   beat = tick / ticks_per_beat;
   tick++;
 
@@ -272,7 +277,7 @@ void ProcessStatePlaying()
 {
     byte currentnote = (((currentbuttons >> 1) & 0x0F) == 0)? lastnote:((currentbuttons >> 1) & 0x0F);
     bool newNote = (lastnote != currentnote) && (currentnote != 0x00);
- 
+    
   //const char * gtrnote = " ";
   
 
