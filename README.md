@@ -2,7 +2,7 @@
 
 Ey joven, te gusta la diversión sana? Convierte tu viejo controlador de Guitar Hero en un Punkelele con el que podrás tocar tus canciones de punk rock favoritas mientras se derriten los polos. Como si fueses Nerón pero en moderno. 
 
-El punkelele es el instrumento punk por excelencia, y es que ¿quien necesita aguantar a una jodida banda si lo puedes hacer todo tú solo?
+El punkelele es el instrumento punk por excelencia, y es que ¿quien necesita aguantar a una banda si lo puedes hacer todo tú solo?
 
 Eso sí, la Guitar hero que sea reciclada y es que el pukelele es un instrumento muy ecológico.
 
