@@ -6,6 +6,8 @@ El punkelele es el instrumento punk por excelencia, y es que ¿quien necesita ag
 
 Eso sí, la Guitar hero que sea reciclada y es que el pukelele es un instrumento muy ecológico.
 
+https://www.youtube.com/watch?v=bCTOd4wv8aU
+
 Como se monta.
 ==============
 
